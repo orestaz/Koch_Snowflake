@@ -8,8 +8,13 @@ namespace BMP_example
         const int W = 2000;
         const int H = 2000;
 
-        static int rowBytes = (W + 31) / 32 * 4;
+        // 24-bit: 3 bytes per pixel, row padded to multiple of 4
+        static int rowBytes = ((W * 3 + 3) / 4) * 4;
         static byte[] t;
+
+        // random spalva segmentui
+        static readonly Random rng = new Random();
+        static byte curR, curG, curB;
 
         static void Main(string[] args)
         {
@@ -30,29 +35,33 @@ namespace BMP_example
             else
             {
                 Console.WriteLine($"depth=max");
+                depth = null; 
             }
 
             t = new byte[H * rowBytes];
 
-            var header = new byte[62]
+            // baltas fonas 24-bit (R=G=B=255)
+            Array.Fill(t, (byte)255);
+
+            // 24-bit BMP header (54 bytes, be palette)
+            var header = new byte[54]
             {
-                0x42, 0x4d,
-                0x0, 0x0, 0x0, 0x0,     // file size (patch)
-                0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,     // data offset (patch)
-                0x28, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,     // width=1000
-                0x0, 0x0, 0x0, 0x0,     // height=1000
-                0x1, 0x0,
-                0x1, 0x0,                // bpp=1
-                0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,      // image size (patch)
-                0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,
-                0x0, 0x0, 0x0, 0x0,
-                0xff, 0xff, 0xff, 0x0,   // white
-                0x0,  0x0,  0x0,  0x0    // black
+                0x42, 0x4d,                         // 'BM'
+                0x0, 0x0, 0x0, 0x0,                 // file size (patch)
+                0x0, 0x0, 0x0, 0x0,                 // reserved
+                0x0, 0x0, 0x0, 0x0,                 // data offset (patch)
+
+                0x28, 0x0, 0x0, 0x0,                // DIB header size = 40
+                0x0, 0x0, 0x0, 0x0,                 // width (patch)
+                0x0, 0x0, 0x0, 0x0,                 // height (patch)
+                0x1, 0x0,                           // planes = 1
+                0x18, 0x0,                          // bpp = 24
+                0x0, 0x0, 0x0, 0x0,                 // compression = 0
+                0x0, 0x0, 0x0, 0x0,                 // image size (patch)
+                0x0, 0x0, 0x0, 0x0,                 // xppm
+                0x0, 0x0, 0x0, 0x0,                 // yppm
+                0x0, 0x0, 0x0, 0x0,                 // clrUsed
+                0x0, 0x0, 0x0, 0x0                  // clrImportant
             };
 
             PatchHeader(header);
@@ -79,20 +88,15 @@ namespace BMP_example
 
         static void PatchHeader(byte[] header)
         {
-            int dataOffset = 62;
+            int dataOffset = 54;
             int imageSize = H * rowBytes;
             int fileSize = dataOffset + imageSize;
 
-            // file size
-            Array.Copy(BitConverter.GetBytes(fileSize), 0, header, 2, 4);
-            // pixel data offset
-            Array.Copy(BitConverter.GetBytes(dataOffset), 0, header, 10, 4);
-            // width @ offset 0x12 (18)
-            Array.Copy(BitConverter.GetBytes(W), 0, header, 0x12, 4);
-            // height @ offset 0x16 (22)
-            Array.Copy(BitConverter.GetBytes(H), 0, header, 0x16, 4);
-            // image size @ offset 0x22 (34)
-            Array.Copy(BitConverter.GetBytes(imageSize), 0, header, 0x22, 4);
+            Array.Copy(BitConverter.GetBytes(fileSize), 0, header, 2, 4);        // file size
+            Array.Copy(BitConverter.GetBytes(dataOffset), 0, header, 10, 4);     // data offset
+            Array.Copy(BitConverter.GetBytes(W), 0, header, 0x12, 4);            // width
+            Array.Copy(BitConverter.GetBytes(H), 0, header, 0x16, 4);            // height
+            Array.Copy(BitConverter.GetBytes(imageSize), 0, header, 0x22, 4);    // image size
         }
 
         static void DrawPolygonFractal(Pt[] poly, int i, int? depth)
@@ -113,6 +117,8 @@ namespace BMP_example
 
             if (len <= 1.2 || (depth != null && depth <= 0))
             {
+                // RANDOM spalva kiekvienam segmentui
+                PickRandomColor();
                 DrawLineRec(A, E);
                 return;
             }
@@ -129,9 +135,8 @@ namespace BMP_example
 
             // viršūnė
             Pt C = new Pt(B.X + rx, B.Y + ry);
-            if(depth != null)
+            if (depth != null)
             {
-                // 4 rekursiniai kvietimai
                 FractalSegment(A, B, depth - 1);
                 FractalSegment(B, C, depth - 1);
                 FractalSegment(C, D, depth - 1);
@@ -154,7 +159,6 @@ namespace BMP_example
             xr = ca * x - sa * y;
             yr = sa * x + ca * y;
         }
-
 
         static void DrawLineRec(Pt a, Pt b)
         {
@@ -191,9 +195,19 @@ namespace BMP_example
             if ((uint)x >= (uint)W) return;
             if ((uint)y >= (uint)H) return;
 
-            int idx = y * rowBytes + (x >> 3);
-            byte mask = (byte)(0x80 >> (x & 7));
-            t[idx] |= mask;
+            int idx = y * rowBytes + x * 3;
+
+            // 24-bit BMP: BGR
+            t[idx + 0] = curB;
+            t[idx + 1] = curG;
+            t[idx + 2] = curR;
+        }
+
+        static void PickRandomColor()
+        {
+            curR = (byte)rng.Next(256);
+            curG = (byte)rng.Next(256);
+            curB = (byte)rng.Next(256);
         }
 
         readonly struct Pt
