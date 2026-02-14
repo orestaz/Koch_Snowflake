@@ -5,38 +5,35 @@ namespace BMP_example
 {
     class Program
     {
-        const int W = 1000;
-        const int H = 1000;
+        const int W = 2000;
+        const int H = 2000;
 
         static int rowBytes = (W + 31) / 32 * 4;
         static byte[] t;
 
-        // Koch generatorius (trikampis): (0,0)->(1,0)
-        static readonly Pt[] Generator = new Pt[]
-        {
-            new Pt(0.0, 0.0),
-            new Pt(1.0/3.0, 0.0),
-            new Pt(0.5, Math.Sqrt(3.0)/6.0),
-            new Pt(2.0/3.0, 0.0),
-            new Pt(1.0, 0.0),
-        };
-
-        static double BaseEdgeMinLenToFractal; // apsaugo kampus (tik bazinėms briaunoms)
-
         static void Main(string[] args)
         {
-            int depth = 3;
+            int? depth = 5;
             if (args != null && args.Length > 0)
             {
-                if (!int.TryParse(args[0], out depth)) depth = 1;
+                if (int.TryParse(args[0], out int parsedDepth))
+                {
+                    depth = parsedDepth;
+                }
+                else
+                {
+                    depth = 1;
+                }
                 if (depth < 0) depth = 0;
+                Console.WriteLine($"depth={depth}");
             }
-
-            Console.WriteLine($"depth={depth}");
+            else
+            {
+                Console.WriteLine($"depth=max");
+            }
 
             t = new byte[H * rowBytes];
 
-            // Header 62 bytes (1-bit) kaip tavo skelete
             var header = new byte[62]
             {
                 0x42, 0x4d,
@@ -44,8 +41,8 @@ namespace BMP_example
                 0x0, 0x0, 0x0, 0x0,
                 0x0, 0x0, 0x0, 0x0,     // data offset (patch)
                 0x28, 0x0, 0x0, 0x0,
-                0xe8, 0x3, 0x0, 0x0,     // width=1000
-                0xe8, 0x3, 0x0, 0x0,     // height=1000
+                0x0, 0x0, 0x0, 0x0,     // width=1000
+                0x0, 0x0, 0x0, 0x0,     // height=1000
                 0x1, 0x0,
                 0x1, 0x0,                // bpp=1
                 0x0, 0x0, 0x0, 0x0,
@@ -67,9 +64,10 @@ namespace BMP_example
                 new Pt(W - 20, H - 20),
                 new Pt(20, H - 20)
             };
-            bool isCCW = SignedArea(initialRectangle, 0, 0.0) > 0.0;
-            DrawPolygonFractal(initialRectangle, 0, depth, isCCW);
-            string outName = $"sample_d{depth}.bmp";
+
+            DrawPolygonFractal(initialRectangle, 0, depth);
+
+            string outName = (depth == null) ? $"sample_dMAX.bmp" : $"sample_d{depth}.bmp";
             using (FileStream file = new FileStream(outName, FileMode.Create, FileAccess.Write))
             {
                 file.Write(header, 0, header.Length);
@@ -82,94 +80,82 @@ namespace BMP_example
         static void PatchHeader(byte[] header)
         {
             int dataOffset = 62;
-            int fileSize = dataOffset + t.Length;
+            int imageSize = H * rowBytes;
+            int fileSize = dataOffset + imageSize;
 
+            // file size
             Array.Copy(BitConverter.GetBytes(fileSize), 0, header, 2, 4);
+            // pixel data offset
             Array.Copy(BitConverter.GetBytes(dataOffset), 0, header, 10, 4);
-            Array.Copy(BitConverter.GetBytes(t.Length), 0, header, 34, 4);
+            // width @ offset 0x12 (18)
+            Array.Copy(BitConverter.GetBytes(W), 0, header, 0x12, 4);
+            // height @ offset 0x16 (22)
+            Array.Copy(BitConverter.GetBytes(H), 0, header, 0x16, 4);
+            // image size @ offset 0x22 (34)
+            Array.Copy(BitConverter.GetBytes(imageSize), 0, header, 0x22, 4);
         }
 
-        // -------- Orientacija (signed area) rekursiškai --------
-        static double SignedArea(Pt[] poly, int i, double acc)
-        {
-            if (i >= poly.Length) return 0.5 * acc;
-
-            int next = (i == poly.Length - 1) ? 0 : i + 1;
-            double term = poly[i].X * poly[next].Y - poly[next].X * poly[i].Y;
-            return SignedArea(poly, i + 1, acc + term);
-        }
-
-        // -------- Fraktalas per bazines briaunas --------
-        static void DrawPolygonFractal(Pt[] poly, int i, int depth, bool isCCW)
+        static void DrawPolygonFractal(Pt[] poly, int i, int? depth)
         {
             if (i >= poly.Length) return;
 
             int next = (i == poly.Length - 1) ? 0 : i + 1;
 
-            // baseEdge=true -> kampų apsauga veikia tik čia
-            FractalSegment(poly[i], poly[next], depth, isCCW, baseEdge: true);
-
-            DrawPolygonFractal(poly, i + 1, depth, isCCW);
+            FractalSegment(poly[i], poly[next], depth);
+            DrawPolygonFractal(poly, i + 1, depth);
         }
 
-        // -------- Viena briauna: Koch --------
-        static void FractalSegment(Pt a, Pt b, int depth, bool isCCW, bool baseEdge)
+        static void FractalSegment(Pt A, Pt E, int? depth)
         {
-            double dx = b.X - a.X, dy = b.Y - a.Y;
+            double dx = E.X - A.X;
+            double dy = E.Y - A.Y;
             double len = Math.Sqrt(dx * dx + dy * dy);
 
-            // Kampų taisymas: jeigu TIK bazinė briauna per trumpa – jos nefraktalinti
-            if (baseEdge && len < BaseEdgeMinLenToFractal)
+            if (len <= 1.2 || (depth != null && depth <= 0))
             {
-                DrawLineRec(a, b);
+                DrawLineRec(A, E);
                 return;
             }
 
-            if (depth <= 0 || len <= 1.0)
-            {
-                DrawLineRec(a, b);
-                return;
-            }
+            // B ir D (trečdaliai)
+            Pt B = new Pt(A.X + dx / 3.0, A.Y + dy / 3.0);
+            Pt D = new Pt(A.X + 2.0 * dx / 3.0, A.Y + 2.0 * dy / 3.0);
 
-            // Vektorius
-            double ux = dx / len, uy = dy / len;
+            // v = (E-A)/3
+            double vx = dx / 3.0;
+            double vy = dy / 3.0;
 
-            // ČIA yra kryptis "kur dėti kupra":
-            // jei poligonas CCW -> vidus yra kairėje -> kupra Į VIDŲ = left normal = (-uy, ux)
-            // jei poligonas CW  -> vidus yra dešinėje -> kupra Į VIDŲ = right normal = (uy, -ux)
-            double vx, vy;
-            if (isCCW)
+            Rotate(vx, vy, 60, out double rx, out double ry);
+
+            // viršūnė
+            Pt C = new Pt(B.X + rx, B.Y + ry);
+            if(depth != null)
             {
-                vx = -uy; vy = ux;   // Į VIDŲ (CCW)
+                // 4 rekursiniai kvietimai
+                FractalSegment(A, B, depth - 1);
+                FractalSegment(B, C, depth - 1);
+                FractalSegment(C, D, depth - 1);
+                FractalSegment(D, E, depth - 1);
             }
             else
             {
-                vx = uy; vy = -ux;  // Į VIDŲ (CW)
+                FractalSegment(A, B, null);
+                FractalSegment(B, C, null);
+                FractalSegment(C, D, null);
+                FractalSegment(D, E, null);
             }
-
-            GenWalk(0, a, len, ux, uy, vx, vy, depth, a, isCCW);
         }
 
-        static void GenWalk(int i, Pt start, double len,
-                            double ux, double uy, double vx, double vy,
-                            int depth, Pt prev, bool isCCW)
+        static void Rotate(double x, double y, double angleDeg, out double xr, out double yr)
         {
-            if (i >= Generator.Length - 1) return;
-
-            Pt g = Generator[i + 1];
-
-            Pt next = new Pt(
-                start.X + (g.X * len) * ux + (g.Y * len) * vx,
-                start.Y + (g.X * len) * uy + (g.Y * len) * vy
-            );
-
-            // baseEdge=false -> kampų apsauga nebetaikoma rekursijos viduje
-            FractalSegment(prev, next, depth - 1, isCCW, baseEdge: false);
-
-            GenWalk(i + 1, start, len, ux, uy, vx, vy, depth, next, isCCW);
+            double rad = angleDeg * Math.PI / 180.0;
+            double ca = Math.Cos(rad);
+            double sa = Math.Sin(rad);
+            xr = ca * x - sa * y;
+            yr = sa * x + ca * y;
         }
 
-        // -------- Linija rekursiškai --------
+
         static void DrawLineRec(Pt a, Pt b)
         {
             double dx = b.X - a.X, dy = b.Y - a.Y;
@@ -193,7 +179,6 @@ namespace BMP_example
             return adx > ady ? adx : ady;
         }
 
-        // -------- SetPixel 1-bit --------
         static void SetPixelRound(double x, double y)
         {
             int xi = (int)Math.Round(x);
@@ -203,8 +188,8 @@ namespace BMP_example
 
         static void SetPixel(int x, int y)
         {
-            if (x >= W) return;
-            if (y >= H) return;
+            if ((uint)x >= (uint)W) return;
+            if ((uint)y >= (uint)H) return;
 
             int idx = y * rowBytes + (x >> 3);
             byte mask = (byte)(0x80 >> (x & 7));
