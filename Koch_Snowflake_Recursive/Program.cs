@@ -25,7 +25,7 @@ namespace BMP_example
 
         static void Main(string[] args)
         {
-            int depth = 2;
+            int depth = 3;
             if (args != null && args.Length > 0)
             {
                 if (!int.TryParse(args[0], out depth)) depth = 1;
@@ -60,18 +60,15 @@ namespace BMP_example
 
             PatchHeader(header);
 
-            // Bazinė figūra (X)
-            Pt[] poly = BuildBaseX();
-
-            // Kampų apsauga: jeigu bazinė briauna trumpesnė už ribą -> jos NEdetalizuojam
-            // 0.14 * min(W,H) yra gera pradžia 1000x1000 (apie 140 px)
-            BaseEdgeMinLenToFractal = Math.Min(W, H) * 0.14;
-
-            // Poligono orientacija (CCW/CW) kad "trikampiai" eitų ten kur reikia
-            bool isCCW = SignedArea(poly, 0, 0.0) > 0.0;
-
-            DrawPolygonFractal(poly, 0, depth, isCCW);
-
+            Pt[] initialRectangle =
+            {
+                new Pt(20, 20),
+                new Pt(W - 20, 20),
+                new Pt(W - 20, H - 20),
+                new Pt(20, H - 20)
+            };
+            bool isCCW = SignedArea(initialRectangle, 0, 0.0) > 0.0;
+            DrawPolygonFractal(initialRectangle, 0, depth, isCCW);
             string outName = $"sample_d{depth}.bmp";
             using (FileStream file = new FileStream(outName, FileMode.Create, FileAccess.Write))
             {
@@ -90,49 +87,6 @@ namespace BMP_example
             Array.Copy(BitConverter.GetBytes(fileSize), 0, header, 2, 4);
             Array.Copy(BitConverter.GetBytes(dataOffset), 0, header, 10, 4);
             Array.Copy(BitConverter.GetBytes(t.Length), 0, header, 34, 4);
-        }
-
-        // -------- Bazinė X figūra --------
-        static Pt[] BuildBaseX()
-        {
-            double ww = W - 1;
-            double hh = H - 1;
-            double min = ww < hh ? ww : hh;
-
-            double m = min * 0.06;   // rėmelis nuo krašto
-            double a = min * 0.22;   // įpjovos pusplotis
-            double d = min * 0.18;   // įpjovos gylis
-
-            double L = m;
-            double R = ww - m;
-            double B = m;
-            double T = hh - m;
-
-            double cx = (L + R) * 0.5;
-            double cy = (B + T) * 0.5;
-
-            return new Pt[]
-            {
-                new Pt(L, T),
-                new Pt(cx - a, T),
-                new Pt(cx, T - d),
-                new Pt(cx + a, T),
-                new Pt(R, T),
-
-                new Pt(R, cy + a),
-                new Pt(R - d, cy),
-                new Pt(R, cy - a),
-
-                new Pt(R, B),
-                new Pt(cx + a, B),
-                new Pt(cx, B + d),
-                new Pt(cx - a, B),
-                new Pt(L, B),
-
-                new Pt(L, cy - a),
-                new Pt(L + d, cy),
-                new Pt(L, cy + a),
-            };
         }
 
         // -------- Orientacija (signed area) rekursiškai --------
@@ -249,8 +203,8 @@ namespace BMP_example
 
         static void SetPixel(int x, int y)
         {
-            if ((uint)x >= (uint)W) return;
-            if ((uint)y >= (uint)H) return;
+            if (x >= W) return;
+            if (y >= H) return;
 
             int idx = y * rowBytes + (x >> 3);
             byte mask = (byte)(0x80 >> (x & 7));
