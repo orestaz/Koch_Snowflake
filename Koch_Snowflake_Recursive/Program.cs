@@ -8,8 +8,8 @@ namespace BMP_example
 {
     class Program
     {
-        static int W = 20000;
-        static int H = 20000;
+        static int W = 1000;
+        static int H = 1000;
         static int counter = 0;
 
         // 24-bit: 3 bytes per pixel, row padded to multiple of 4
@@ -103,10 +103,18 @@ namespace BMP_example
                 sw.WriteLine("Recursion Nr." + ';' + "Operation Count" + ';' + "Time, ms" + ';');
                 for (int i = 0; i < 11; i++)
                 {
+                    t = new byte[H * rowBytes];
+                    Array.Fill(t, (byte)255);
                     counter = 0;
                     DateTime start = DateTime.Now;
                     DrawPolygonFractal(poly, 0, i);
                     double miliseconds = (DateTime.Now - start).TotalMilliseconds;
+                    string outName = $"sample_d{i}.bmp";
+                    using (FileStream file = new FileStream(outName, FileMode.Create, FileAccess.Write))
+                    {
+                        file.Write(header, 0, header.Length);
+                        file.Write(t, 0, t.Length);
+                    }
                     string line = String.Format("{0};{1};{2}", i, counter, miliseconds);
                     sw.WriteLine(line);
                 }
@@ -144,7 +152,12 @@ namespace BMP_example
                     DateTime start = DateTime.Now;
                     DrawPolygonFractal(initialRectangle, 0, null);
                     double ms = (DateTime.Now - start).TotalMilliseconds;
-
+                    string outName =  $"sample_dMAX_{W}x{H}.bmp";
+                    using (FileStream file = new FileStream(outName, FileMode.Create, FileAccess.Write))
+                    {
+                        file.Write(header, 0, header.Length);
+                        file.Write(t, 0, t.Length);
+                    }
                     sw.WriteLine($"{W};{counter};{ms}");
                 }
             }
