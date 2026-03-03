@@ -100,7 +100,7 @@ namespace BMP_example
 
             Console.WriteLine($"Saved: {outName}");
             Test10Recursions(header, initialRectangle);
-            TestBySizeMaxDepth(header);
+            //TestBySizeMaxDepth(header);
         }
 
         static void Test10Recursions(byte[] header, Pt[] poly)
@@ -134,7 +134,7 @@ namespace BMP_example
                         file.Write(header, 0, header.Length);
                         file.Write(t, 0, t.Length);
                     }
-                    string line = String.Format("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12};{13};", i, sk_priskyrimas, sk_suma, sk_skirtumas, sk_sandauga, sk_dalyba, sk_saknis, sk_sin, sk_cos, sk_if_salyga, sk_return, sk_metodo_kvietimas, sk_priskyrimas + sk_suma + sk_skirtumas + sk_sandauga + sk_dalyba + sk_saknis + sk_sin + sk_cos + sk_if_salyga + sk_return + sk_metodo_kvietimas, miliseconds);
+                    string line = String.Format("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11};{12};", i, sk_priskyrimas, sk_suma, sk_skirtumas, sk_sandauga, sk_dalyba, sk_saknis, sk_sin, sk_cos, sk_if_salyga, sk_return, sk_metodo_kvietimas, sk_priskyrimas + sk_suma + sk_skirtumas + sk_sandauga + sk_dalyba + sk_saknis + sk_sin + sk_cos + sk_if_salyga + sk_return, miliseconds);
                     sw.WriteLine(line);
 
                     sk_suma = 0;
@@ -311,8 +311,8 @@ namespace BMP_example
 
             if (MaxAbs(dx, dy) <= 0.75)
             {
-                SetPixelRound(a.X, a.Y);
-                SetPixelRound(b.X, b.Y);
+                SetPixel(a.X, a.Y);
+                SetPixel(b.X, b.Y);
                 return;
             }
 
@@ -354,15 +354,10 @@ namespace BMP_example
             }
         }
 
-        static void SetPixelRound(double x, double y)
+        static void SetPixel(double xd, double yd)
         {
-            int xi = (int)Math.Round(x);
-            int yi = (int)Math.Round(y);
-            SetPixel(xi, yi);
-        }
-
-        static void SetPixel(int x, int y)
-        {
+            int x = (int)Math.Round(xd);
+            int y = (int)Math.Round(yd);
             if ((uint)x >= (uint)W)
             {
                 return;
@@ -481,8 +476,8 @@ namespace BMP_example
 
             if (_MaxAbs(dx, dy) <= 0.75)
             {
-                _SetPixelRound(a.X, a.Y);
-                _SetPixelRound(b.X, b.Y);
+                _SetPixel(a.X, a.Y);
+                _SetPixel(b.X, b.Y);
                 count(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2);
                 return;
             }
@@ -535,16 +530,12 @@ namespace BMP_example
             }
         }
 
-        static void _SetPixelRound(double x, double y)
+        static void _SetPixel(double xd, double yd)
         {
-            int xi = (int)Math.Round(x);
-            int yi = (int)Math.Round(y);
-            _SetPixel(xi, yi);
-            count(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3);
-        }
+            int x = (int)Math.Round(xd);
+            int y = (int)Math.Round(yd);
+            count(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2);
 
-        static void _SetPixel(int x, int y)
-        {
             count(0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0);
             if ((uint)x >= (uint)W)
             {
